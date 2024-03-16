@@ -1,0 +1,179 @@
+pragma solidity ^0.8.0;
+
+import "./lib/SafeMath.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+import "hardhat/console.sol";
+contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
+    using SafeMath for uint256;
+
+    struct Bidding {
+        address user;
+        uint256 bidAmount;
+        uint256 blockNumber;
+    }
+
+    struct AuctionInfo {
+        uint256 id;
+        uint256 startBlock;
+        uint256 endBlock;
+        uint256 numWinners;
+        uint256[] tokenIds;
+        bool set; // info set?
+        bool ended;
+    }
+
+    event RegisterAuction(uint256 auctionId, uint256 startBlock, uint256 endBlock, uint256 numWinners, uint256[] tokenids);
+    event Bid(uint256 auctionId, address user, uint256 bidAmount, uint256 blockNumber);
+    event EndAuction(uint256 auctionId, uint256 numWinners);
+    event TransferSuccessful(uint256 auctionId, address user, uint256 tokenId);
+    event TransferFailed(uint256 auctionId, address user, uint256 tokenId);
+
+    mapping(uint256 => AuctionInfo) public auctionInfoMap;
+    mapping(uint256 => Bidding[]) public topBiddingMap;
+    mapping(uint256 => Bidding[]) public biddingMap;
+    mapping(uint256 => uint256) public minimumBidMap;
+    uint256 constant MINIMUM_GAP = 10 ** 17; // 0.1 BNB
+    IERC721 public ogSpacesShip;
+
+    function initialize(address initialOwner, address _ogSpacesShip) external initializer {
+        __Ownable_init(initialOwner);
+        ogSpacesShip = IERC721(_ogSpacesShip);
+    }
+
+    function registerAuction(uint256 auctionId, uint256 startBlock, uint256 endBlock, uint256[] memory tokenIds, uint256 numWinners) external onlyOwner {
+        require(numWinners <= 30, 'MAX 30');
+        require(tokenIds.length == numWinners, 'Invalid Token Count');
+        require(startBlock <= endBlock, 'Start > End');
+        require(startBlock >= block.number, 'Start < Now');
+        require(auctionId != 0 && auctionInfoMap[auctionId].id != auctionId, 'INVALID AUCTION ID');
+        auctionInfoMap[auctionId] = AuctionInfo({
+            id: auctionId,
+            startBlock: startBlock,
+            endBlock: endBlock,
+            numWinners: numWinners,
+            tokenIds: tokenIds,
+            set: true,
+            ended: false
+        });
+        emit RegisterAuction(auctionId, startBlock, endBlock, numWinners, tokenIds);
+    }
+
+    function bid(uint256 auctionId) external payable nonReentrant {
+        AuctionInfo storage auctionInfo = auctionInfoMap[auctionId];
+        require(auctionInfo.set, 'Invalid Auction');
+        require(auctionInfo.startBlock <= block.number && auctionInfo.endBlock >= block.number, 'Not Auction Time');
+        require(msg.value >= minimumBidMap[auctionId].add(MINIMUM_GAP), "Insufficient Amount");
+
+        Bidding[] storage biddings = topBiddingMap[auctionId];
+
+        Bidding memory newBid = Bidding({
+            user: msg.sender,
+            bidAmount: msg.value,
+            blockNumber: block.number
+        });
+
+        bool inserted = false;
+        for (uint256 i = 0; i < biddings.length; i++) {
+            if (biddings[i].bidAmount < newBid.bidAmount) {
+                biddings.push();
+                for (uint256 j = biddings.length - 1; j > i; j--) {
+                    biddings[j] = biddings[j - 1];
+                }
+                biddings[i] = newBid;
+                inserted = true;
+                break;
+            }
+        }
+
+        if (!inserted && biddings.length < auctionInfo.numWinners) {
+            biddings.push(newBid);
+        } else if (biddings.length > auctionInfo.numWinners) {
+            biddings.pop();
+        }
+
+        minimumBidMap[auctionId] = biddings[biddings.length - 1].bidAmount;
+        biddingMap[auctionId].push(newBid);
+        emit Bid(auctionId, newBid.user, newBid.bidAmount, newBid.blockNumber);
+    }
+
+    function endAuction(uint256 auctionId) external onlyOwner {
+        AuctionInfo storage auctionInfo = auctionInfoMap[auctionId];
+        require(auctionInfo.set, 'Invalid Auction');
+        require(auctionInfo.endBlock < block.number, 'Auction Not Over');
+        require(!auctionInfo.ended, 'Auction Ended');
+        Bidding[] storage biddings = topBiddingMap[auctionId];
+
+        for(uint256 i; i < biddings.length; i++) {
+            try ogSpacesShip.transferFrom(address(this), biddings[i].user, auctionInfo.tokenIds[i]) {
+                emit TransferSuccessful(auctionId, biddings[i].user, auctionInfo.tokenIds[i]);
+            } catch {
+                emit TransferFailed(auctionId, biddings[i].user, auctionInfo.tokenIds[i]);
+            }
+        }
+        auctionInfo.ended = true;
+        emit EndAuction(auctionId, biddings.length);
+    }
+
+    function getTopBiddings(uint256 auctionId) external view returns (Bidding[] memory) {
+        return topBiddingMap[auctionId];
+    }
+
+    function getTopNBiddings(uint256 auctionId, uint256 n) external view returns (Bidding[] memory) {
+        Bidding[] storage biddings = biddingMap[auctionId];
+
+        // n이 실제 입찰 수보다 많을 경우, 실제 입찰 수를 사용
+        if (n > biddings.length) {
+            n = biddings.length;
+        }
+
+        Bidding[] memory topNBiddings = new Bidding[](n);
+        for (uint256 i = 0; i < n; i++) {
+            topNBiddings[i] = biddings[i];
+        }
+        return topNBiddings;
+    }
+
+    function getBiddingHistory(uint256 auctionId) external view returns (Bidding[] memory) {
+        return biddingMap[auctionId];
+    }
+
+    // from <= index < to
+    function getPartialBiddingHistory(uint256 auctionId, uint256 from, uint256 to) external view returns (Bidding[] memory) {
+        require(from < to, "Invalid Range: from >= to");
+
+        Bidding[] storage biddings = biddingMap[auctionId];
+        require(from < biddings.length, "Invalid Range: 'from' is out of bounds");
+        require(to <= biddings.length, "Invalid Range: 'to' is out of bounds");
+        uint256 length = to - from;
+
+        Bidding[] memory partialBiddings = new Bidding[](length);
+        for (uint256 i = 0; i < length; i++) {
+            partialBiddings[i] = biddings[from + i];
+        }
+        return partialBiddings;
+    }
+
+    function getBiddingHistorySize(uint256 auctionId) external view returns (uint256) {
+        return biddingMap[auctionId].length;
+    }
+
+    function transferOgSpacesShip(address to, uint256 tokenId) external onlyOwner {
+        ogSpacesShip.transferFrom(address(this), to, tokenId);
+    }
+
+    function withdraw(address to, uint256 amount) external onlyOwner {
+        if (amount == 0) {
+            to.call{value: address(this).balance}("");
+        } else {
+            to.call{value: amount}("");
+        }
+    }
+
+    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+}
