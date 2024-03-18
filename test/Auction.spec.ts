@@ -14,6 +14,7 @@ interface AuctionInfo {
 }
 
 describe("Auction Contract Test", function () {
+  const BNB_0_1 = 10n ** 17n;
   const auctionInfos: AuctionInfo[] = [
     {
       auctionId: 1,
@@ -115,50 +116,121 @@ describe("Auction Contract Test", function () {
     });
 
     /*
-    1. user1 bid 0.1 -> minimumBid 0.1 / bidding size 1 / user1
-    2. user2 bid 0.2 -> minimumBid 0.1 / bidding size 2 / user2, user1
-    3. user3 bid 0.5 -> minimumBid 0.1 / bidding size 3 / user3, user2, user1
-    4. user4 bid 0.3 -> minimumBid 0.2 / bidding size 3 / user3, user4, user2
-    5. user5 bid 0.6 -> minimumBid 0.3 / bidding size 3 / user5, user3, user4
+    1. user1 bid 0.1 -> minimumBid 0.2 / bidding size 1 / user1(0.1)
+    2. user2 bid 0.2 -> minimumBid 0.2 / bidding size 2 / user2(0.2), user1(0.1)
+    3. user3 bid 0.5 -> minimumBid 0.2 / bidding size 3 / user3(0.5), user2(0.2), user1(0.1)
+    4. user4 bid 0.3 -> minimumBid 0.3 / bidding size 3 / user3(0.5), user4(0.3), user2(0.2) / refund: user1(0.1)
+    5. user5 bid 0.6 -> minimumBid 0.4 / bidding size 3 / user5(0.6), user3(0.5), user4(0.3) / refund: user2(0.2)
     6. user6 bid 0.2 -> fail
+    7. user1 bid 0.7 -> minimumBid 0.6 / bidding size 3 / user1(0.7), user5(0.6), user3(0.5) / refund: user4(0.3)
+    8. user2 bid 0.6 -> minimumBid 0.7 / bidding size 3 / user1(0.7), user5(0.6), user2(0.6) / refund: user3(0.5)
+    9. user3 bid 0.7 -> minimumBid 0.7 / bidding size 3 / user1(0.7), user3(0.7), user5(0.6) / refund: user2(0.6)
      */
     it("scenario", async () => {
+      // 1
       await auction.connect(user1).bid(auctionId, {value: ethers.parseEther('0.1')});
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.1'));
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.2'));
       expect((await auction.getTopBiddings(auctionId)).length).to.eq(1);
       expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user1.getAddress());
 
+      // 2
       await auction.connect(user2).bid(auctionId, {value: ethers.parseEther('0.2')});
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.1'));
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.2'));
       expect((await auction.getTopBiddings(auctionId)).length).to.eq(2);
       expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user2.getAddress());
       expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user1.getAddress());
 
+      // 3
       await auction.connect(user3).bid(auctionId, {value: ethers.parseEther('0.5')});
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.1'));
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.2'));
       expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
       expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user3.getAddress());
       expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user2.getAddress());
       expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user1.getAddress());
 
-      await auction.connect(user4).bid(auctionId, {value: ethers.parseEther('0.3')});
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.2'));
+      // 4
+      let user1BalanceBefore = await ethers.provider.getBalance(await user1.getAddress());
+      const tx4 = await auction.connect(user4).bid(auctionId, {value: ethers.parseEther('0.3')});
+      const tx4Receipt = await tx4.wait();
+      let user1BalanceAfter = await ethers.provider.getBalance(await user1.getAddress());
+      expect(user1BalanceAfter - user1BalanceBefore).to.eq(BNB_0_1);
+      let refundEvent = tx4Receipt.logs.find(log => {
+        return log.topics[0] === ethers.id("BiddingRefund(address,uint256)");
+      });
+      expect(refundEvent).not.undefined;
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.3'));
       expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
       expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user3.getAddress());
       expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user4.getAddress());
       expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user2.getAddress());
 
-      await auction.connect(user5).bid(auctionId, {value: ethers.parseEther('0.6')});
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.3'));
+      // 5
+      let user2BalanceBefore = await ethers.provider.getBalance(await user2.getAddress());
+      const tx5 = await auction.connect(user5).bid(auctionId, {value: ethers.parseEther('0.6')});
+      const tx5Receipt = await tx5.wait();
+      let user2BalanceAfter = await ethers.provider.getBalance(await user2.getAddress());
+      expect(user2BalanceAfter - user2BalanceBefore).to.eq(BNB_0_1 * 2n);
+      refundEvent = tx5Receipt.logs.find(log => {
+        return log.topics[0] === ethers.id("BiddingRefund(address,uint256)");
+      });
+      expect(refundEvent).not.undefined;
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.4'));
       expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
       expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user5.getAddress());
       expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user3.getAddress());
       expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user4.getAddress());
 
+      // 6
       await expect(auction.connect(user6).bid(auctionId, {value: ethers.parseEther('0.2')})).to.be.revertedWith('Insufficient Amount');
-    });
 
-    // TODO: 실패 케이스
+      // 7
+      let user4BalanceBefore = await ethers.provider.getBalance(await user4.getAddress());
+      const tx7 = await auction.connect(user1).bid(auctionId, {value: ethers.parseEther('0.7')});
+      const tx7Receipt = await tx7.wait();
+      let user4BalanceAfter = await ethers.provider.getBalance(await user4.getAddress());
+      expect(user4BalanceAfter - user4BalanceBefore).to.eq(BNB_0_1 * 3n);
+      refundEvent = tx7Receipt.logs.find(log => {
+        return log.topics[0] === ethers.id("BiddingRefund(address,uint256)");
+      });
+      expect(refundEvent).not.undefined;
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.6'));
+      expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
+      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user1.getAddress());
+      expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user5.getAddress());
+      expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user3.getAddress());
+
+      // 8
+      let user3BalanceBefore = await ethers.provider.getBalance(await user3.getAddress());
+      const tx8 = await auction.connect(user2).bid(auctionId, {value: ethers.parseEther('0.6')});
+      const tx8Receipt = await tx8.wait();
+      let user3BalanceAfter = await ethers.provider.getBalance(await user3.getAddress());
+      expect(user3BalanceAfter - user3BalanceBefore).to.eq(BNB_0_1 * 5n);
+      refundEvent = tx8Receipt.logs.find(log => {
+        return log.topics[0] === ethers.id("BiddingRefund(address,uint256)");
+      });
+      expect(refundEvent).not.undefined;
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.7'));
+      expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
+      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user1.getAddress());
+      expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user5.getAddress());
+      expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user2.getAddress());
+
+      // 9
+      user2BalanceBefore = await ethers.provider.getBalance(await user2.getAddress());
+      const tx9 = await auction.connect(user3).bid(auctionId, {value: ethers.parseEther('0.7')});
+      const tx9Receipt = await tx9.wait();
+      user2BalanceAfter = await ethers.provider.getBalance(await user2.getAddress());
+      expect(user2BalanceAfter - user2BalanceBefore).to.eq(BNB_0_1 * 6n);
+      refundEvent = tx9Receipt.logs.find(log => {
+        return log.topics[0] === ethers.id("BiddingRefund(address,uint256)");
+      });
+      expect(refundEvent).not.undefined;
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.7'));
+      expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
+      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user1.getAddress());
+      expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user3.getAddress());
+      expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user5.getAddress());
+    });
   });
 
   describe("endAuction", () => {

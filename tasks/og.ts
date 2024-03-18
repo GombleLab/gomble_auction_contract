@@ -2,7 +2,8 @@ import {task} from "hardhat/config";
 import {ContractConfig, network} from "./types";
 import {bnbMainnetConfig, bnbTestnetConfig} from "./constant";
 
-const OG_SPACESHIP_ADDRESS = '0x027163A126eEDB6d1156bb69d0Cf6b74b50fbfC2';
+const OG_SPACESHIP_ADDRESS = '0x6109EC40208796b1f3974273Ec3d3EB3f138D605';
+const AUCTION_ADDRESS = '0xC018e19D8d008b4b5d119d62346F08570bD4C816';
 
 task('og-bulkMint')
   .setAction(async ({}, hre) => {
@@ -17,7 +18,7 @@ task('og-bulkMint')
       60, 61, 62, 63, 64, 65, 66, 67, 68, 69
     ];
     const uris = tokenIds.map(tokenId => `https://baseUrl.com/${tokenId}`);
-    const result = await og.bulkMint('0xbE7582a8F090e64d2E2Ae225540D498f6747c23f',
+    const result = await og.bulkMint(AUCTION_ADDRESS,
       tokenIds,
       uris
       );

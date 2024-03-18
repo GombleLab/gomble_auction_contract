@@ -31,6 +31,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
     event EndAuction(uint256 auctionId, uint256 numWinners);
     event TransferSuccessful(uint256 auctionId, address user, uint256 tokenId);
     event TransferFailed(uint256 auctionId, address user, uint256 tokenId);
+    event BiddingRefund(address user, uint256 amount);
 
     mapping(uint256 => AuctionInfo) public auctionInfoMap;
     mapping(uint256 => Bidding[]) public topBiddingMap;
@@ -59,6 +60,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
             set: true,
             ended: false
         });
+        minimumBidMap[auctionId] = MINIMUM_GAP;
         emit RegisterAuction(auctionId, startBlock, endBlock, numWinners, tokenIds);
     }
 
@@ -66,7 +68,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
         AuctionInfo storage auctionInfo = auctionInfoMap[auctionId];
         require(auctionInfo.set, 'Invalid Auction');
         require(auctionInfo.startBlock <= block.number && auctionInfo.endBlock >= block.number, 'Not Auction Time');
-        require(msg.value >= minimumBidMap[auctionId].add(MINIMUM_GAP), "Insufficient Amount");
+        require(msg.value >= minimumBidMap[auctionId], "Insufficient Amount");
 
         Bidding[] storage biddings = topBiddingMap[auctionId];
 
@@ -92,10 +94,13 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
         if (!inserted && biddings.length < auctionInfo.numWinners) {
             biddings.push(newBid);
         } else if (biddings.length > auctionInfo.numWinners) {
+            Bidding memory outbid = biddings[biddings.length - 1];
+            outbid.user.call{value: outbid.bidAmount}("");
+            emit BiddingRefund(outbid.user, outbid.bidAmount);
             biddings.pop();
         }
 
-        minimumBidMap[auctionId] = biddings[biddings.length - 1].bidAmount;
+        minimumBidMap[auctionId] = biddings[biddings.length - 1].bidAmount.add(MINIMUM_GAP);
         biddingMap[auctionId].push(newBid);
         emit Bid(auctionId, newBid.user, newBid.bidAmount, newBid.blockNumber);
     }
@@ -152,8 +157,9 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
 
         Bidding[] memory partialBiddings = new Bidding[](length);
         for (uint256 i = 0; i < length; i++) {
-            partialBiddings[i] = biddings[from + i];
+            partialBiddings[i] = biddings[biddings.length - 1 - (from + i)];
         }
+
         return partialBiddings;
     }
 
