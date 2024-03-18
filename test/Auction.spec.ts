@@ -2,11 +2,10 @@ import {expect} from "chai";
 import {ethers} from "hardhat";
 import {
   Auction, Auction__factory,
-  Betting, Betting__factory, OGSpaceship, OGSpaceship__factory,
+  OGSpaceship, OGSpaceship__factory,
 } from "../typechain-types";
 import type {Signer} from "ethers";
-import {AbiCoder} from "ethers";
-import {advanceBlock, getRandomUint256, makeBettingMessage} from "./utils";
+import {advanceBlock} from "./utils";
 
 interface AuctionInfo {
   auctionId: number,
@@ -42,7 +41,7 @@ describe("Auction Contract Test", function () {
   const baseUrl = `https://baseUrl.com/`;
   const tokenIds = auctionInfos.reduce((acc, auctionInfo) => acc.concat(auctionInfo.tokenIds), []);
   const uris = tokenIds.map(tokenId => `${baseUrl}${tokenId}`);
-  let ogSpacesShip: OGSpaceship;
+  let ogSpaceship: OGSpaceship;
   let auction: Auction;
   let owner: Signer;
   let user1: Signer;
@@ -54,13 +53,13 @@ describe("Auction Contract Test", function () {
 
   beforeEach(async () => {
     [owner, user1, user2, user3, user4, user5, user6] = await ethers.getSigners();
-    ogSpacesShip = await new OGSpaceship__factory(owner).deploy('OG SPACESHIP', 'OG SPACESHIP');
-    await ogSpacesShip.waitForDeployment();
-    await ogSpacesShip.initialize(await owner.getAddress());
+    ogSpaceship = await new OGSpaceship__factory(owner).deploy('OG SPACESHIP', 'OG SPACESHIP');
+    await ogSpaceship.waitForDeployment();
+    await ogSpaceship.initialize(await owner.getAddress());
     auction = await new Auction__factory(owner).deploy();
     await auction.waitForDeployment();
-    await auction.initialize(await owner.getAddress(), await ogSpacesShip.getAddress());
-    await ogSpacesShip.bulkMint(
+    await auction.initialize(await owner.getAddress(), await ogSpaceship.getAddress());
+    await ogSpaceship.bulkMint(
       await auction.getAddress(),
       tokenIds,
       uris
@@ -207,10 +206,10 @@ describe("Auction Contract Test", function () {
       await auction.endAuction(auctionInfo.auctionId);
 
       expect((await auction.auctionInfoMap(1)).ended).to.be.true;
-      expect(await ogSpacesShip.ownerOf(auctionInfo.tokenIds[0])).to.eq(await user4.getAddress());
-      expect(await ogSpacesShip.ownerOf(auctionInfo.tokenIds[1])).to.eq(await user3.getAddress());
-      expect(await ogSpacesShip.ownerOf(auctionInfo.tokenIds[2])).to.eq(await user2.getAddress());
-      expect(await ogSpacesShip.ownerOf(auctionInfo.tokenIds[3])).to.eq(await user1.getAddress());
+      expect(await ogSpaceship.ownerOf(auctionInfo.tokenIds[0])).to.eq(await user4.getAddress());
+      expect(await ogSpaceship.ownerOf(auctionInfo.tokenIds[1])).to.eq(await user3.getAddress());
+      expect(await ogSpaceship.ownerOf(auctionInfo.tokenIds[2])).to.eq(await user2.getAddress());
+      expect(await ogSpaceship.ownerOf(auctionInfo.tokenIds[3])).to.eq(await user1.getAddress());
     });
   });
 

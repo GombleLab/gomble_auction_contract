@@ -37,11 +37,11 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
     mapping(uint256 => Bidding[]) public biddingMap;
     mapping(uint256 => uint256) public minimumBidMap;
     uint256 constant MINIMUM_GAP = 10 ** 17; // 0.1 BNB
-    IERC721 public ogSpacesShip;
+    IERC721 public ogSpaceship;
 
-    function initialize(address initialOwner, address _ogSpacesShip) external initializer {
+    function initialize(address initialOwner, address _ogSpaceship) external initializer {
         __Ownable_init(initialOwner);
-        ogSpacesShip = IERC721(_ogSpacesShip);
+        ogSpaceship = IERC721(_ogSpaceship);
     }
 
     function registerAuction(uint256 auctionId, uint256 startBlock, uint256 endBlock, uint256[] memory tokenIds, uint256 numWinners) external onlyOwner {
@@ -49,7 +49,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
         require(tokenIds.length == numWinners, 'Invalid Token Count');
         require(startBlock <= endBlock, 'Start > End');
         require(startBlock >= block.number, 'Start < Now');
-        require(auctionId != 0 && auctionInfoMap[auctionId].id != auctionId, 'INVALID AUCTION ID');
+        require(auctionId != 0 && auctionInfoMap[auctionId].id != auctionId, 'Invalid Auction Id');
         auctionInfoMap[auctionId] = AuctionInfo({
             id: auctionId,
             startBlock: startBlock,
@@ -108,7 +108,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
         Bidding[] storage biddings = topBiddingMap[auctionId];
 
         for(uint256 i; i < biddings.length; i++) {
-            try ogSpacesShip.transferFrom(address(this), biddings[i].user, auctionInfo.tokenIds[i]) {
+            try ogSpaceship.transferFrom(address(this), biddings[i].user, auctionInfo.tokenIds[i]) {
                 emit TransferSuccessful(auctionId, biddings[i].user, auctionInfo.tokenIds[i]);
             } catch {
                 emit TransferFailed(auctionId, biddings[i].user, auctionInfo.tokenIds[i]);
@@ -161,8 +161,8 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
         return biddingMap[auctionId].length;
     }
 
-    function transferOgSpacesShip(address to, uint256 tokenId) external onlyOwner {
-        ogSpacesShip.transferFrom(address(this), to, tokenId);
+    function transferOgSpaceship(address to, uint256 tokenId) external onlyOwner {
+        ogSpaceship.transferFrom(address(this), to, tokenId);
     }
 
     function withdraw(address to, uint256 amount) external onlyOwner {
