@@ -38,6 +38,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
     mapping(uint256 => Bidding[]) public biddingMap;
     mapping(uint256 => uint256) public minimumBidMap;
     uint256 constant MINIMUM_GAP = 10 ** 17; // 0.1 BNB
+    uint256 constant MINIMUM_BIDDING_AMOUNT = 10 ** 18; // 1 BNB
     IERC721 public ogSpaceship;
 
     function initialize(address initialOwner, address _ogSpaceship) external initializer {
@@ -60,7 +61,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
             set: true,
             ended: false
         });
-        minimumBidMap[auctionId] = MINIMUM_GAP;
+        minimumBidMap[auctionId] = MINIMUM_BIDDING_AMOUNT;
         emit RegisterAuction(auctionId, startBlock, endBlock, numWinners, tokenIds);
     }
 

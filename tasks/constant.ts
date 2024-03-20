@@ -8,7 +8,7 @@ export const bnbTestnetConfig: ContractConfig = {
   },
   auction: {
     owner: '0x1c45d8f61617D5fE87Ae85A7C045e4f2aAa9102e',
-    og: '0x6109EC40208796b1f3974273Ec3d3EB3f138D605',
+    og: '0x8E0DdeB773BB0734a98ECE12aE3f0Aa5d2fB1aE5',
   }
 }
 
