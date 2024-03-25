@@ -113,24 +113,27 @@ describe("Auction Contract Test", function () {
 
     it("failed: insufficient amount", async () => {
       await auction.connect(user1).bid(auctionId, {value: ethers.parseEther('1')});
+      await auction.connect(user1).bid(auctionId, {value: ethers.parseEther('3')});
+      await auction.connect(user1).bid(auctionId, {value: ethers.parseEther('2')});
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.1'));
       await expect(auction.connect(user2).bid(auctionId, {value: ethers.parseEther('1')})).to.be.revertedWith('Insufficient Amount');
     });
 
     /*
-    1. user1 bid 1.1 -> minimumBid 0.2 / bidding size 1 / user1(1.1)
-    2. user2 bid 1.2 -> minimumBid 0.2 / bidding size 2 / user2(1.2), user1(1.1)
-    3. user3 bid 1.5 -> minimumBid 0.2 / bidding size 3 / user3(1.5), user2(1.2), user1(1.1)
-    4. user4 bid 1.3 -> minimumBid 0.3 / bidding size 3 / user3(1.5), user4(1.3), user2(1.2) / refund: user1(1.1)
-    5. user5 bid 1.6 -> minimumBid 0.4 / bidding size 3 / user5(1.6), user3(1.5), user4(1.3) / refund: user2(1.2)
+    1. user1 bid 1.1 -> minimumBid 1 / bidding size 1 / user1(1.1)
+    2. user2 bid 1.2 -> minimumBid 1 / bidding size 2 / user2(1.2), user1(1.1)
+    3. user3 bid 1.5 -> minimumBid 1.2 / bidding size 3 / user3(1.5), user2(1.2), user1(1.1)
+    4. user4 bid 1.3 -> minimumBid 1.3 / bidding size 3 / user3(1.5), user4(1.3), user2(1.2) / refund: user1(1.1)
+    5. user5 bid 1.6 -> minimumBid 1.4 / bidding size 3 / user5(1.6), user3(1.5), user4(1.3) / refund: user2(1.2)
     6. user6 bid 1.2 -> fail
-    7. user1 bid 1.7 -> minimumBid 0.6 / bidding size 3 / user1(1.7), user5(1.6), user3(1.5) / refund: user4(1.3)
-    8. user2 bid 1.6 -> minimumBid 0.7 / bidding size 3 / user1(1.7), user5(1.6), user2(1.6) / refund: user3(1.5)
-    9. user3 bid 1.7 -> minimumBid 0.7 / bidding size 3 / user1(1.7), user3(1.7), user5(1.6) / refund: user2(1.6)
+    7. user1 bid 1.7 -> minimumBid 1.6 / bidding size 3 / user1(1.7), user5(1.6), user3(1.5) / refund: user4(1.3)
+    8. user2 bid 1.6 -> minimumBid 1.7 / bidding size 3 / user1(1.7), user5(1.6), user2(1.6) / refund: user3(1.5)
+    9. user3 bid 1.7 -> minimumBid 1.7 / bidding size 3 / user1(1.7), user3(1.7), user5(1.6) / refund: user2(1.6)
      */
     it("scenario", async () => {
       // 1
       await auction.connect(user1).bid(auctionId, {value: ethers.parseEther('1.1')});
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.2'));
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1'));
       let topBiddings = Array.from(await auction.getTopBiddings(auctionId));
       expect(topBiddings.length).to.eq(1);
       expect(topBiddings[0].user).to.eq(await user1.getAddress());
@@ -138,7 +141,7 @@ describe("Auction Contract Test", function () {
 
       // 2
       await auction.connect(user2).bid(auctionId, {value: ethers.parseEther('1.2')});
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.2'));
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1'));
       topBiddings = Array.from(await auction.getTopBiddings(auctionId));
       expect(topBiddings.length).to.eq(2);
       expect(topBiddings[0].user).to.eq(await user2.getAddress());

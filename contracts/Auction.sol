@@ -33,6 +33,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
     event TransferSuccessful(uint256 auctionId, address user, uint256 tokenId);
     event TransferFailed(uint256 auctionId, address user, uint256 tokenId);
     event BiddingRefund(address user, uint256 amount);
+    event BiddingRefundFailed(address user, uint256 amount);
 
     mapping(uint256 => AuctionInfo) public auctionInfoMap;
     mapping(uint256 => Bidding[]) public topBiddingMap;
@@ -96,14 +97,22 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
 
         if (!inserted && topNBiddings.length < auctionInfo.numWinners) {
             topNBiddings.push(newBid);
-        } else if (topNBiddings.length > auctionInfo.numWinners) {
+        }
+        if (topNBiddings.length == auctionInfo.numWinners) {
+            minimumBidMap[auctionId] = topNBiddings[topNBiddings.length - 1].bidAmount.add(MINIMUM_GAP);
+        }
+        if (topNBiddings.length > auctionInfo.numWinners) {
             Bidding memory outbid = topNBiddings[topNBiddings.length - 1];
-            outbid.user.call{value: outbid.bidAmount}("");
-            emit BiddingRefund(outbid.user, outbid.bidAmount);
+            (bool success, ) = outbid.user.call{value: outbid.bidAmount}("");
+            if (success) {
+                emit BiddingRefund(outbid.user, outbid.bidAmount);
+            } else {
+                emit BiddingRefundFailed(outbid.user, outbid.bidAmount);
+            }
             topNBiddings.pop();
+            minimumBidMap[auctionId] = topNBiddings[topNBiddings.length - 1].bidAmount.add(MINIMUM_GAP);
         }
 
-        minimumBidMap[auctionId] = topNBiddings[topNBiddings.length - 1].bidAmount.add(MINIMUM_GAP);
         biddingMap[auctionId].push(newBid);
         emit Bid(auctionId, newBid.id, newBid.user, newBid.bidAmount, newBid.blockNumber);
     }
