@@ -14,6 +14,7 @@ interface AuctionInfo {
 }
 
 describe("Auction Contract Test", function () {
+  const BNB_1 = 10n ** 18n;
   const BNB_0_1 = 10n ** 17n;
   const auctionInfos: AuctionInfo[] = [
     {
@@ -116,120 +117,149 @@ describe("Auction Contract Test", function () {
     });
 
     /*
-    1. user1 bid 0.1 -> minimumBid 0.2 / bidding size 1 / user1(0.1)
-    2. user2 bid 0.2 -> minimumBid 0.2 / bidding size 2 / user2(0.2), user1(0.1)
-    3. user3 bid 0.5 -> minimumBid 0.2 / bidding size 3 / user3(0.5), user2(0.2), user1(0.1)
-    4. user4 bid 0.3 -> minimumBid 0.3 / bidding size 3 / user3(0.5), user4(0.3), user2(0.2) / refund: user1(0.1)
-    5. user5 bid 0.6 -> minimumBid 0.4 / bidding size 3 / user5(0.6), user3(0.5), user4(0.3) / refund: user2(0.2)
-    6. user6 bid 0.2 -> fail
-    7. user1 bid 0.7 -> minimumBid 0.6 / bidding size 3 / user1(0.7), user5(0.6), user3(0.5) / refund: user4(0.3)
-    8. user2 bid 0.6 -> minimumBid 0.7 / bidding size 3 / user1(0.7), user5(0.6), user2(0.6) / refund: user3(0.5)
-    9. user3 bid 0.7 -> minimumBid 0.7 / bidding size 3 / user1(0.7), user3(0.7), user5(0.6) / refund: user2(0.6)
+    1. user1 bid 1.1 -> minimumBid 0.2 / bidding size 1 / user1(1.1)
+    2. user2 bid 1.2 -> minimumBid 0.2 / bidding size 2 / user2(1.2), user1(1.1)
+    3. user3 bid 1.5 -> minimumBid 0.2 / bidding size 3 / user3(1.5), user2(1.2), user1(1.1)
+    4. user4 bid 1.3 -> minimumBid 0.3 / bidding size 3 / user3(1.5), user4(1.3), user2(1.2) / refund: user1(1.1)
+    5. user5 bid 1.6 -> minimumBid 0.4 / bidding size 3 / user5(1.6), user3(1.5), user4(1.3) / refund: user2(1.2)
+    6. user6 bid 1.2 -> fail
+    7. user1 bid 1.7 -> minimumBid 0.6 / bidding size 3 / user1(1.7), user5(1.6), user3(1.5) / refund: user4(1.3)
+    8. user2 bid 1.6 -> minimumBid 0.7 / bidding size 3 / user1(1.7), user5(1.6), user2(1.6) / refund: user3(1.5)
+    9. user3 bid 1.7 -> minimumBid 0.7 / bidding size 3 / user1(1.7), user3(1.7), user5(1.6) / refund: user2(1.6)
      */
     it("scenario", async () => {
       // 1
-      await auction.connect(user1).bid(auctionId, {value: ethers.parseEther('0.1')});
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.2'));
-      expect((await auction.getTopBiddings(auctionId)).length).to.eq(1);
-      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user1.getAddress());
+      await auction.connect(user1).bid(auctionId, {value: ethers.parseEther('1.1')});
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.2'));
+      let topBiddings = Array.from(await auction.getTopBiddings(auctionId));
+      expect(topBiddings.length).to.eq(1);
+      expect(topBiddings[0].user).to.eq(await user1.getAddress());
+      expect(topBiddings[0].id).to.eq(0);
 
       // 2
-      await auction.connect(user2).bid(auctionId, {value: ethers.parseEther('0.2')});
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.2'));
-      expect((await auction.getTopBiddings(auctionId)).length).to.eq(2);
-      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user2.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user1.getAddress());
+      await auction.connect(user2).bid(auctionId, {value: ethers.parseEther('1.2')});
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.2'));
+      topBiddings = Array.from(await auction.getTopBiddings(auctionId));
+      expect(topBiddings.length).to.eq(2);
+      expect(topBiddings[0].user).to.eq(await user2.getAddress());
+      expect(topBiddings[0].id).to.eq(1);
+      expect(topBiddings[1].user).to.eq(await user1.getAddress());
+      expect(topBiddings[1].id).to.eq(0);
 
       // 3
-      await auction.connect(user3).bid(auctionId, {value: ethers.parseEther('0.5')});
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.2'));
-      expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
-      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user3.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user2.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user1.getAddress());
+      await auction.connect(user3).bid(auctionId, {value: ethers.parseEther('1.5')});
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.2'));
+      topBiddings = Array.from(await auction.getTopBiddings(auctionId));
+      expect(topBiddings.length).to.eq(3);
+      expect(topBiddings[0].user).to.eq(await user3.getAddress());
+      expect(topBiddings[0].id).to.eq(2);
+      expect(topBiddings[1].user).to.eq(await user2.getAddress());
+      expect(topBiddings[1].id).to.eq(1);
+      expect(topBiddings[2].user).to.eq(await user1.getAddress());
+      expect(topBiddings[2].id).to.eq(0);
 
       // 4
       let user1BalanceBefore = await ethers.provider.getBalance(await user1.getAddress());
-      const tx4 = await auction.connect(user4).bid(auctionId, {value: ethers.parseEther('0.3')});
+      const tx4 = await auction.connect(user4).bid(auctionId, {value: ethers.parseEther('1.3')});
       const tx4Receipt = await tx4.wait();
       let user1BalanceAfter = await ethers.provider.getBalance(await user1.getAddress());
-      expect(user1BalanceAfter - user1BalanceBefore).to.eq(BNB_0_1);
+      expect(user1BalanceAfter - user1BalanceBefore).to.eq(BNB_1 + BNB_0_1);
       let refundEvent = tx4Receipt.logs.find(log => {
         return log.topics[0] === ethers.id("BiddingRefund(address,uint256)");
       });
       expect(refundEvent).not.undefined;
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.3'));
-      expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
-      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user3.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user4.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user2.getAddress());
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.3'));
+      topBiddings = Array.from(await auction.getTopBiddings(auctionId));
+      expect(topBiddings.length).to.eq(3);
+      expect(topBiddings[0].user).to.eq(await user3.getAddress());
+      expect(topBiddings[0].id).to.eq(2);
+      expect(topBiddings[1].user).to.eq(await user4.getAddress());
+      expect(topBiddings[1].id).to.eq(3);
+      expect(topBiddings[2].user).to.eq(await user2.getAddress());
+      expect(topBiddings[2].id).to.eq(1);
 
       // 5
       let user2BalanceBefore = await ethers.provider.getBalance(await user2.getAddress());
-      const tx5 = await auction.connect(user5).bid(auctionId, {value: ethers.parseEther('0.6')});
+      const tx5 = await auction.connect(user5).bid(auctionId, {value: ethers.parseEther('1.6')});
       const tx5Receipt = await tx5.wait();
       let user2BalanceAfter = await ethers.provider.getBalance(await user2.getAddress());
-      expect(user2BalanceAfter - user2BalanceBefore).to.eq(BNB_0_1 * 2n);
+      expect(user2BalanceAfter - user2BalanceBefore).to.eq(BNB_1 + BNB_0_1 * 2n);
       refundEvent = tx5Receipt.logs.find(log => {
         return log.topics[0] === ethers.id("BiddingRefund(address,uint256)");
       });
       expect(refundEvent).not.undefined;
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.4'));
-      expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
-      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user5.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user3.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user4.getAddress());
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.4'));
+      topBiddings = Array.from(await auction.getTopBiddings(auctionId));
+      expect(topBiddings.length).to.eq(3);
+      expect(topBiddings[0].user).to.eq(await user5.getAddress());
+      expect(topBiddings[0].id).to.eq(4);
+      expect(topBiddings[1].user).to.eq(await user3.getAddress());
+      expect(topBiddings[1].id).to.eq(2);
+      expect(topBiddings[2].user).to.eq(await user4.getAddress());
+      expect(topBiddings[2].id).to.eq(3);
 
       // 6
-      await expect(auction.connect(user6).bid(auctionId, {value: ethers.parseEther('0.2')})).to.be.revertedWith('Insufficient Amount');
+      await expect(auction.connect(user6).bid(auctionId, {value: ethers.parseEther('1.2')})).to.be.revertedWith('Insufficient Amount');
 
       // 7
       let user4BalanceBefore = await ethers.provider.getBalance(await user4.getAddress());
-      const tx7 = await auction.connect(user1).bid(auctionId, {value: ethers.parseEther('0.7')});
+      const tx7 = await auction.connect(user1).bid(auctionId, {value: ethers.parseEther('1.7')});
       const tx7Receipt = await tx7.wait();
       let user4BalanceAfter = await ethers.provider.getBalance(await user4.getAddress());
-      expect(user4BalanceAfter - user4BalanceBefore).to.eq(BNB_0_1 * 3n);
+      expect(user4BalanceAfter - user4BalanceBefore).to.eq(BNB_1 + BNB_0_1 * 3n);
       refundEvent = tx7Receipt.logs.find(log => {
         return log.topics[0] === ethers.id("BiddingRefund(address,uint256)");
       });
       expect(refundEvent).not.undefined;
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.6'));
-      expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
-      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user1.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user5.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user3.getAddress());
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.6'));
+      topBiddings = Array.from(await auction.getTopBiddings(auctionId));
+      expect(topBiddings.length).to.eq(3);
+      expect(topBiddings[0].user).to.eq(await user1.getAddress());
+      expect(topBiddings[0].id).to.eq(5);
+      expect(topBiddings[1].user).to.eq(await user5.getAddress());
+      expect(topBiddings[1].id).to.eq(4);
+      expect(topBiddings[2].user).to.eq(await user3.getAddress());
+      expect(topBiddings[2].id).to.eq(2);
 
       // 8
       let user3BalanceBefore = await ethers.provider.getBalance(await user3.getAddress());
-      const tx8 = await auction.connect(user2).bid(auctionId, {value: ethers.parseEther('0.6')});
+      const tx8 = await auction.connect(user2).bid(auctionId, {value: ethers.parseEther('1.6')});
       const tx8Receipt = await tx8.wait();
       let user3BalanceAfter = await ethers.provider.getBalance(await user3.getAddress());
-      expect(user3BalanceAfter - user3BalanceBefore).to.eq(BNB_0_1 * 5n);
+      expect(user3BalanceAfter - user3BalanceBefore).to.eq(BNB_1 + BNB_0_1 * 5n);
       refundEvent = tx8Receipt.logs.find(log => {
         return log.topics[0] === ethers.id("BiddingRefund(address,uint256)");
       });
       expect(refundEvent).not.undefined;
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.7'));
-      expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
-      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user1.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user5.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user2.getAddress());
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.7'));
+      topBiddings = Array.from(await auction.getTopBiddings(auctionId));
+      expect(topBiddings.length).to.eq(3);
+      expect(topBiddings[0].user).to.eq(await user1.getAddress());
+      expect(topBiddings[0].id).to.eq(5);
+      expect(topBiddings[1].user).to.eq(await user5.getAddress());
+      expect(topBiddings[1].id).to.eq(4);
+      expect(topBiddings[2].user).to.eq(await user2.getAddress());
+      expect(topBiddings[2].id).to.eq(6);
 
       // 9
       user2BalanceBefore = await ethers.provider.getBalance(await user2.getAddress());
-      const tx9 = await auction.connect(user3).bid(auctionId, {value: ethers.parseEther('0.7')});
+      const tx9 = await auction.connect(user3).bid(auctionId, {value: ethers.parseEther('1.7')});
       const tx9Receipt = await tx9.wait();
       user2BalanceAfter = await ethers.provider.getBalance(await user2.getAddress());
-      expect(user2BalanceAfter - user2BalanceBefore).to.eq(BNB_0_1 * 6n);
+      expect(user2BalanceAfter - user2BalanceBefore).to.eq(BNB_1 + BNB_0_1 * 6n);
       refundEvent = tx9Receipt.logs.find(log => {
         return log.topics[0] === ethers.id("BiddingRefund(address,uint256)");
       });
       expect(refundEvent).not.undefined;
-      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('0.7'));
-      expect((await auction.getTopBiddings(auctionId)).length).to.eq(3);
-      expect(Array.from(await auction.getTopBiddings(auctionId))[0].user).to.eq(await user1.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[1].user).to.eq(await user3.getAddress());
-      expect(Array.from(await auction.getTopBiddings(auctionId))[2].user).to.eq(await user5.getAddress());
+      expect(await auction.minimumBidMap(auctionId)).to.eq(ethers.parseEther('1.7'));
+      topBiddings = Array.from(await auction.getTopBiddings(auctionId));
+      expect(topBiddings.length).to.eq(3);
+      expect(topBiddings[0].user).to.eq(await user1.getAddress());
+      expect(topBiddings[0].id).to.eq(5);
+      expect(topBiddings[1].user).to.eq(await user3.getAddress());
+      expect(topBiddings[1].id).to.eq(7);
+      expect(topBiddings[2].user).to.eq(await user5.getAddress());
+      expect(topBiddings[2].id).to.eq(4);
     });
   });
 
@@ -269,10 +299,10 @@ describe("Auction Contract Test", function () {
       await auction.registerAuction(auctionInfo.auctionId, startBlock, endBlock, auctionInfo.tokenIds, auctionInfo.numWinners);
       await advanceBlock(endBlock - startBlock);
 
-      await auction.connect(user1).bid(auctionInfo.auctionId, {value: ethers.parseEther('0.1')});
-      await auction.connect(user2).bid(auctionInfo.auctionId, {value: ethers.parseEther('0.2')});
-      await auction.connect(user3).bid(auctionInfo.auctionId, {value: ethers.parseEther('0.3')});
-      await auction.connect(user4).bid(auctionInfo.auctionId, {value: ethers.parseEther('0.4')});
+      await auction.connect(user1).bid(auctionInfo.auctionId, {value: ethers.parseEther('1.1')});
+      await auction.connect(user2).bid(auctionInfo.auctionId, {value: ethers.parseEther('1.2')});
+      await auction.connect(user3).bid(auctionInfo.auctionId, {value: ethers.parseEther('1.3')});
+      await auction.connect(user4).bid(auctionInfo.auctionId, {value: ethers.parseEther('1.4')});
 
       await advanceBlock(diff);
       await auction.endAuction(auctionInfo.auctionId);
@@ -297,7 +327,7 @@ describe("Auction Contract Test", function () {
 
       const biddingCount = 50;
       for(let index = 0; index < biddingCount; index++) {
-        await auction.connect(user1).bid(auctionInfo.auctionId, {value: ethers.parseEther(String(0.1 * (index + 1)))});
+        await auction.connect(user1).bid(auctionInfo.auctionId, {value: ethers.parseEther(String(1 + 0.1 * (index + 1)))});
       }
 
       expect(await auction.getBiddingHistorySize(auctionInfo.auctionId)).to.eq(biddingCount);

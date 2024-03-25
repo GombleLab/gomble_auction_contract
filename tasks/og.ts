@@ -2,8 +2,8 @@ import {task} from "hardhat/config";
 import {ContractConfig, network} from "./types";
 import {bnbMainnetConfig, bnbTestnetConfig} from "./constant";
 
-const OG_SPACESHIP_ADDRESS = '0x8E0DdeB773BB0734a98ECE12aE3f0Aa5d2fB1aE5';
-const AUCTION_ADDRESS = '0xAB8c9Eb287796F075C821ffafBaC5FeDAa4604d5';
+const OG_SPACESHIP_ADDRESS = '0x328B65fA5fbd3d1aFB5a726A28F4C7F432670AC5';
+const AUCTION_ADDRESS = '0xda3e7a2c4aC7eD63aa3b0EaD1232f2D3d5A2EF86';
 
 task('og-bulkMint')
   .setAction(async ({}, hre) => {

@@ -11,6 +11,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
     using SafeMath for uint256;
 
     struct Bidding {
+        uint256 id;
         address user;
         uint256 bidAmount;
         uint256 blockNumber;
@@ -27,7 +28,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
     }
 
     event RegisterAuction(uint256 auctionId, uint256 startBlock, uint256 endBlock, uint256 numWinners, uint256[] tokenids);
-    event Bid(uint256 auctionId, address user, uint256 bidAmount, uint256 blockNumber);
+    event Bid(uint256 auctionId, uint256 id, address user, uint256 bidAmount, uint256 blockNumber);
     event EndAuction(uint256 auctionId, uint256 numWinners);
     event TransferSuccessful(uint256 auctionId, address user, uint256 tokenId);
     event TransferFailed(uint256 auctionId, address user, uint256 tokenId);
@@ -37,8 +38,8 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
     mapping(uint256 => Bidding[]) public topBiddingMap;
     mapping(uint256 => Bidding[]) public biddingMap;
     mapping(uint256 => uint256) public minimumBidMap;
-    uint256 constant MINIMUM_GAP = 10 ** 17; // 0.1 BNB
-    uint256 constant MINIMUM_BIDDING_AMOUNT = 10 ** 18; // 1 BNB
+    uint256 constant MINIMUM_GAP = 10 ** 15; // 0.1 BNB TODO: 0.001 Testnet, 0.1 Mainnet
+    uint256 constant MINIMUM_BIDDING_AMOUNT = 10 ** 16; // 1 BNB TODO: 0.01 Testnet, 1 Mainnet
     IERC721 public ogSpaceship;
 
     function initialize(address initialOwner, address _ogSpaceship) external initializer {
@@ -71,39 +72,40 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
         require(auctionInfo.startBlock <= block.number && auctionInfo.endBlock >= block.number, 'Not Auction Time');
         require(msg.value >= minimumBidMap[auctionId], "Insufficient Amount");
 
-        Bidding[] storage biddings = topBiddingMap[auctionId];
+        Bidding[] storage topNBiddings = topBiddingMap[auctionId];
 
         Bidding memory newBid = Bidding({
+            id: biddingMap[auctionId].length,
             user: msg.sender,
             bidAmount: msg.value,
             blockNumber: block.number
         });
 
         bool inserted = false;
-        for (uint256 i = 0; i < biddings.length; i++) {
-            if (biddings[i].bidAmount < newBid.bidAmount) {
-                biddings.push();
-                for (uint256 j = biddings.length - 1; j > i; j--) {
-                    biddings[j] = biddings[j - 1];
+        for (uint256 i = 0; i < topNBiddings.length; i++) {
+            if (topNBiddings[i].bidAmount < newBid.bidAmount) {
+                topNBiddings.push();
+                for (uint256 j = topNBiddings.length - 1; j > i; j--) {
+                    topNBiddings[j] = topNBiddings[j - 1];
                 }
-                biddings[i] = newBid;
+                topNBiddings[i] = newBid;
                 inserted = true;
                 break;
             }
         }
 
-        if (!inserted && biddings.length < auctionInfo.numWinners) {
-            biddings.push(newBid);
-        } else if (biddings.length > auctionInfo.numWinners) {
-            Bidding memory outbid = biddings[biddings.length - 1];
+        if (!inserted && topNBiddings.length < auctionInfo.numWinners) {
+            topNBiddings.push(newBid);
+        } else if (topNBiddings.length > auctionInfo.numWinners) {
+            Bidding memory outbid = topNBiddings[topNBiddings.length - 1];
             outbid.user.call{value: outbid.bidAmount}("");
             emit BiddingRefund(outbid.user, outbid.bidAmount);
-            biddings.pop();
+            topNBiddings.pop();
         }
 
-        minimumBidMap[auctionId] = biddings[biddings.length - 1].bidAmount.add(MINIMUM_GAP);
+        minimumBidMap[auctionId] = topNBiddings[topNBiddings.length - 1].bidAmount.add(MINIMUM_GAP);
         biddingMap[auctionId].push(newBid);
-        emit Bid(auctionId, newBid.user, newBid.bidAmount, newBid.blockNumber);
+        emit Bid(auctionId, newBid.id, newBid.user, newBid.bidAmount, newBid.blockNumber);
     }
 
     function endAuction(uint256 auctionId) external onlyOwner {
@@ -128,7 +130,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
         return topBiddingMap[auctionId];
     }
 
-    function getTopNBiddings(uint256 auctionId, uint256 n) external view returns (Bidding[] memory) {
+    function getTopNBiddingHistory(uint256 auctionId, uint256 n) external view returns (Bidding[] memory) {
         Bidding[] storage biddings = biddingMap[auctionId];
 
         // n이 실제 입찰 수보다 많을 경우, 실제 입찰 수를 사용
@@ -138,7 +140,7 @@ contract Auction is OwnableUpgradeable, ReentrancyGuard, IERC721Receiver {
 
         Bidding[] memory topNBiddings = new Bidding[](n);
         for (uint256 i = 0; i < n; i++) {
-            topNBiddings[i] = biddings[i];
+            topNBiddings[i] = biddings[biddings.length - 1 - i];
         }
         return topNBiddings;
     }
